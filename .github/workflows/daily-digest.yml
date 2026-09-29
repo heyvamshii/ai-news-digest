@@ -1,0 +1,84 @@
+name: Daily AI News Digest
+
+on:
+  schedule:
+    - cron: "30 2 * * *"          # 02:30 UTC = 08:00 IST, every day
+  workflow_dispatch:              # adds a "Run workflow" button on the Actions tab
+    inputs:
+      demo:
+        description: "Quick demo run (20 articles)"
+        type: boolean
+        default: false
+      email:
+        description: "Send the email newsletter"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write                 # needed to commit the new PDF and database
+
+concurrency:
+  group: daily-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build today's digest and send the email
+        env:
+          DIGEST_PUBLISH: "1"
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        # Scheduled runs always email; manual runs follow the "email" checkbox.
+        run: >
+          python run_digest.py
+          ${{ inputs.demo && '--demo' || '' }}
+          ${{ (github.event_name == 'schedule' || inputs.email) && '--email' || '' }}
+
+      # The steps below run even if the email failed, so the day's PDF and
+      # articles are never lost. The run still shows red so you notice.
+      - name: Save the PDF and database back to the repository
+        if: success() || failure()
+        run: |
+          git config user.name "ai-digest-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for path in reports data/news.db; do
+            if [ -e "$path" ]; then git add "$path"; fi
+          done
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+          else
+            git commit -m "digest: $(TZ=Asia/Kolkata date +%Y-%m-%d)"
+            git pull --rebase --autostash
+            git push
+          fi
+
+      - name: Find today's PDF
+        if: success() || failure()
+        run: echo "PDF_PATH=reports/AI_Digest_$(TZ=Asia/Kolkata date +%Y-%m-%d).pdf" >> "$GITHUB_ENV"
+
+      - name: Attach the PDF to this run
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-digest-pdf
+          path: ${{ env.PDF_PATH }}
+          retention-days: 30
+          if-no-files-found: warn     # quiet news day: no PDF, not an error

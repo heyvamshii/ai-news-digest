@@ -1,0 +1,7 @@
+feedparser==6.0.14
+requests==2.34.2
+beautifulsoup4==4.15.0
+groq==1.7.0
+fpdf2==2.8.8
+python-dotenv==1.2.3
+tzdata==2026.4

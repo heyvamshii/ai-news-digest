@@ -1,0 +1,13 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.claude/
+
+# local runs (only GitHub Actions output is committed)
+data/local.db
+reports/local/
