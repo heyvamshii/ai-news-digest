@@ -15,7 +15,7 @@
 Also run `git pull` before the call to download the latest daily PDFs and database from GitHub.
 
 Backup plan: if the internet or Groq fails during the call, open this morning's PDF from
-`reports\` (after `git pull`) or on GitHub. It was built automatically at 08:00.
+`reports\` (after `git pull`) or on GitHub. It was built automatically at 12:15 PM.
 
 ## During the call
 
@@ -50,7 +50,7 @@ flag shows only your local runs.)
 > "Everything is stored, so no story is ever repeated on a later day."
 
 **5. Show the automation (1 min)**: GitHub -> **Actions** tab
-- The list of daily runs (green ticks) proves it runs on its own at 08:00 IST.
+- The list of daily runs (green ticks) proves it runs on its own at 12:15 PM IST.
 - Click **Daily AI News Digest -> Run workflow** to start one live.
 - Open the **reports/** folder to show one PDF per day.
 

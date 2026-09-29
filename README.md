@@ -5,7 +5,7 @@ database, uses an LLM (Groq) to rank and summarise it, **emails an HTML newslett
 and saves a **one-page PDF briefing**. It runs automatically every day on GitHub Actions: no laptop needed.
 
 ```
- GitHub Actions (08:00 IST daily)  or  python run_digest.py
+ GitHub Actions (12:15 PM IST daily)  or  python run_digest.py
                  |
   [1] COLLECT    12 RSS feeds  +  anthropic.com/news (HTML scraping)  +  Hacker News API
                  -> last 72 hours, max 8 per source, max 70 per day
@@ -78,7 +78,7 @@ Exit codes: `0` OK, `1` no source reachable, `2` digest built but the email fail
 
 The workflow in `.github/workflows/daily-digest.yml`:
 
-1. runs every day at **08:00 IST** (and whenever you press **Run workflow** on the Actions tab),
+1. runs every day at **12:15 PM IST** (and whenever you press **Run workflow** on the Actions tab),
 2. builds the digest and emails the newsletter (manual runs have an "email" checkbox),
 3. commits `reports/AI_Digest_<date>.pdf` and `data/news.db` back to the repository,
    even if the email failed, so no day is lost,
