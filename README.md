@@ -6,7 +6,7 @@ saves a **one-page PDF briefing**, and publishes a **web dashboard** (Vercel) wh
 date and read that day's newsletter. It runs automatically every day on GitHub Actions: no laptop needed.
 
 ```
- GitHub Actions (12:15 PM IST daily)  or  python run_digest.py
+ cron-job.org (12:15 PM IST daily) -> GitHub Actions  or  python run_digest.py
                  |
   [1] COLLECT    12 RSS feeds  +  anthropic.com/news (HTML scraping)  +  Hacker News API
                  -> last 72 hours, max 8 per source, max 70 per day
@@ -83,7 +83,8 @@ Exit codes: `0` OK, `1` no source reachable, `2` digest built but the email fail
 
 The workflow in `.github/workflows/daily-digest.yml`:
 
-1. runs every day at **12:15 PM IST** (and whenever you press **Run workflow** on the Actions tab),
+1. runs every day at **12:15 PM IST**, started on time by cron-job.org via the GitHub API
+   (GitHub's built-in schedule is best-effort and ran hours late), and whenever you press **Run workflow**,
 2. builds the digest and emails the newsletter (manual runs have an "email" checkbox),
 3. rebuilds the web dashboard into `docs/`,
 4. commits `reports/AI_Digest_<date>.pdf`, `data/news.db` and `docs/` back to the repository,
@@ -134,7 +135,7 @@ branch `main` -> copy the URL -> add it as the GitHub secret `VERCEL_DEPLOY_HOOK
 triggers the deploy itself.
 
 Note: a manual **Run workflow** with "Quick demo run" ticked replaces that day's issue with the
-smaller demo version (4 stories). The next day's scheduled run is unaffected.
+smaller demo version (4 stories). The next day's 12:15 run is unaffected.
 
 | Layer | Choice | Why |
 |---|---|---|
