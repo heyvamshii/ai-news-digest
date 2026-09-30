@@ -98,19 +98,25 @@ def _also(articles: tuple[Article, ...]) -> str:
     return _section_title("Also worth knowing") + f'<tr><td style="padding:0 28px;">{"".join(blocks)}</td></tr>'
 
 
-def _footer(digest: Digest, pdf_url: str | None) -> str:
+def _link_line(url: str | None, text: str) -> str:
+    if not url:
+        return ""
+    return (f'<p style="margin:0 0 10px;{FONT}font-size:13px;"><a href="{safe_url(url)}" '
+            f'style="color:{ACCENT};font-weight:bold;text-decoration:none;">{text} &rarr;</a></p>')
+
+
+def _footer(digest: Digest, pdf_url: str | None, dashboard_url: str | None = None) -> str:
     lines = [f"Sources: {escape(', '.join(digest.source_names))}.",
              f"Summaries: {escape(digest.mode)}.",
              *(escape(n) for n in digest.notes)]
-    pdf = (f'<p style="margin:0 0 12px;{FONT}font-size:13px;"><a href="{safe_url(pdf_url)}" '
-           f'style="color:{ACCENT};font-weight:bold;text-decoration:none;">Download today\'s one-page PDF &rarr;</a></p>'
-           if pdf_url else "")
-    return (f'<tr><td style="padding:28px 28px 26px;border-top:1px solid #e3e5ea;">{pdf}'
+    links = (_link_line(dashboard_url, "Open in the dashboard: past issues, search, charts")
+             + _link_line(pdf_url, "Download today's one-page PDF"))
+    return (f'<tr><td style="padding:28px 28px 26px;border-top:1px solid #e3e5ea;">{links}'
             + _p("<br>".join(lines), f"color:{MUTED};font-size:12px;line-height:18px;")
             + "</td></tr>")
 
 
-def render_html(digest: Digest, pdf_url: str | None = None) -> str:
+def render_html(digest: Digest, pdf_url: str | None = None, dashboard_url: str | None = None) -> str:
     stories = "".join(_story(i, s) for i, s in enumerate(digest.top_stories, start=1))
     preheader = escape(digest.overview[0]) if digest.overview else ""
     return f"""<!DOCTYPE html>
@@ -123,11 +129,11 @@ def render_html(digest: Digest, pdf_url: str | None = None) -> str:
 <tr><td align="center" style="padding:20px 10px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
  style="max-width:620px;background:{CARD};border-radius:8px;overflow:hidden;">
-{_header(digest)}{_overview(digest.overview)}{_section_title("Top stories")}{stories}{_also(digest.also_worth_knowing)}{_footer(digest, pdf_url)}
+{_header(digest)}{_overview(digest.overview)}{_section_title("Top stories")}{stories}{_also(digest.also_worth_knowing)}{_footer(digest, pdf_url, dashboard_url)}
 </table></td></tr></table></body></html>"""
 
 
-def render_text(digest: Digest, pdf_url: str | None = None) -> str:
+def render_text(digest: Digest, pdf_url: str | None = None, dashboard_url: str | None = None) -> str:
     """Plain-text version; spam filters like emails that include one."""
     lines = [f"AI NEWS DIGEST - {digest.date_label}", "", "TODAY IN AI"]
     lines += [f"- {p}" for p in digest.overview]
@@ -137,7 +143,11 @@ def render_text(digest: Digest, pdf_url: str | None = None) -> str:
                   f"   {s.summary or ''}", f"   {s.url}", ""]
     if digest.also_worth_knowing:
         lines += ["ALSO WORTH KNOWING"] + [f"- {a.title} ({a.source}) {a.url}" for a in digest.also_worth_knowing]
+    if dashboard_url or pdf_url:
+        lines.append("")
+    if dashboard_url:
+        lines.append(f"Dashboard: {dashboard_url}")
     if pdf_url:
-        lines += ["", f"PDF: {pdf_url}"]
+        lines.append(f"PDF: {pdf_url}")
     lines += ["", f"Sources: {', '.join(digest.source_names)}."]
     return "\n".join(lines)

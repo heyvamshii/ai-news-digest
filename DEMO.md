@@ -8,7 +8,8 @@
    .venv\Scripts\activate
    ```
 2. Do one practice run so everything is warm: `python run_digest.py --demo`
-3. Open these browser tabs: your GitHub repo's **Actions** tab, and its **reports/** folder.
+3. Open these browser tabs: your **dashboard** (your Vercel link), your GitHub repo's **Actions**
+   tab, and your inbox.
 4. Make the terminal text bigger (Ctrl + mouse wheel).
 5. In Meet, choose **Present -> Your entire screen**, so you can switch windows freely.
 
@@ -54,9 +55,17 @@ flag shows only your local runs.)
 - Click **Daily AI News Digest -> Run workflow** to start one live.
 - Open the **reports/** folder to show one PDF per day.
 
+**5b. Show the dashboard (1–2 min)**: open your Vercel link.
+- Point at the calendar: every orange-dotted day has an issue. Click one to show that day's newsletter.
+- Click a headline: the original article opens in a new tab.
+- Scroll to **Insights** (articles by category, source and day) and **Search** (type "OpenAI").
+- Click **Copy link to this issue** to show that every day has its own shareable link.
+> "The dashboard is a static site. The daily run exports the database to JSON and Vercel
+> redeploys it automatically, so there's no server to maintain."
+
 **6. Next steps (30 s)**
-> "Because everything is in the database, the next output is a web dashboard to search
-> all past articles. It reuses the same data."
+> "Everything is stored, so next I can add a weekly trend report: which companies and topics
+> are rising over time."
 
 ## Likely questions
 
@@ -66,6 +75,8 @@ flag shows only your local runs.)
 | Why RSS instead of scraping everything? | RSS is the site's official machine-readable feed. It's more reliable and polite. HTML scraping is used where there's no feed (Anthropic) and for full article text. |
 | Why Groq? | It's free, very fast, and its API follows the OpenAI standard. About 5 calls a day keeps it inside the free tier. |
 | How is the email sent? | SendGrid's Web API. Each recipient gets a private copy, scraped text is HTML-escaped, and if the email fails the PDF and database are still saved. |
+| How does the dashboard update? | The daily GitHub run exports the database to JSON files in `docs/` and commits them; Vercel sees the commit and redeploys within a minute. No server, no database in the cloud. |
+| Why no React / Streamlit? | The dashboard only displays data, so plain HTML/JS is enough: no build step, nothing to keep running, loads instantly. |
 | What if the LLM fails? | Keyword rules take over and the PDF is still created. The footer says which mode was used. |
 | How do you avoid duplicates? | Normalised URL + title matching, and a UNIQUE key in the database. |
-| How is it tested? | 84 automated tests with a fake network and fake LLM, 99% coverage (`pytest --cov=.`). |
+| How is it tested? | 99 automated tests with a fake network and fake LLM, 99% coverage (`pytest --cov=.`). |

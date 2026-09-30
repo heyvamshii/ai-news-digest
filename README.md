@@ -2,7 +2,8 @@
 
 Every morning this project collects the latest AI news from 14 sources, stores it in a
 database, uses an LLM (Groq) to rank and summarise it, **emails an HTML newsletter** (SendGrid)
-and saves a **one-page PDF briefing**. It runs automatically every day on GitHub Actions: no laptop needed.
+saves a **one-page PDF briefing**, and publishes a **web dashboard** (Vercel) where you can pick any
+date and read that day's newsletter. It runs automatically every day on GitHub Actions: no laptop needed.
 
 ```
  GitHub Actions (12:15 PM IST daily)  or  python run_digest.py
@@ -14,7 +15,8 @@ and saves a **one-page PDF briefing**. It runs automatically every day on GitHub
   [4] SCRAPE     download full article text for the top stories (robots.txt respected)
   [5] SUMMARISE  Groq LLM: 45-word summaries + 3 "Today in AI" bullets
   [6] PUBLISH    one-page PDF -> reports/AI_Digest_YYYY-MM-DD.pdf
-  [7] EMAIL      HTML newsletter to your inbox via SendGrid (with a link to the PDF)
+  [7] EMAIL      HTML newsletter to your inbox via SendGrid (with links to the PDF and dashboard)
+  [8] DASHBOARD  build_site.py exports the database to JSON -> docs/ -> Vercel redeploys
 ```
 
 ## What makes it more than a script
@@ -28,7 +30,8 @@ and saves a **one-page PDF briefing**. It runs automatically every day on GitHub
 | Never breaks | A failing source is skipped. If Groq is down or the key is missing, keyword rules take over and the PDF is still produced |
 | Always one page | The layout drops the least important items until the page fits |
 | Safe email | All scraped text is HTML-escaped and only http(s) links are allowed; each recipient gets a private copy |
-| Tested | 84 automated tests, 99% coverage, no network or API key needed |
+| Web dashboard | Calendar of every issue, the full newsletter with clickable links, charts, search. Static site: no server to run |
+| Tested | 99 automated tests, 99% coverage, no network or API key needed |
 
 ## Setup (one time)
 
@@ -62,6 +65,8 @@ own domain. Mark one as "Not spam".
 | `python run_digest.py --no-llm` | Run without Groq (keyword rules). Works with no key at all |
 | `python run_digest.py --email` | Also send the newsletter with SendGrid |
 | `python run_digest.py --email-preview` | Save the newsletter as an `.html` file next to the PDF, without sending |
+| `python build_site.py` | Build the dashboard from your local runs into `reports/local/site/` |
+| `python -m http.server 8000 --directory reports/local/site` | Preview that dashboard at http://localhost:8000 |
 | `python show_db.py` | Show what your local runs stored |
 | `python show_db.py --published` | Show the daily history built by GitHub Actions (after `git pull`) |
 | `start reports\local\AI_Digest_YYYY-MM-DD.pdf` | Open a PDF from a local run (Windows) |
@@ -80,9 +85,10 @@ The workflow in `.github/workflows/daily-digest.yml`:
 
 1. runs every day at **12:15 PM IST** (and whenever you press **Run workflow** on the Actions tab),
 2. builds the digest and emails the newsletter (manual runs have an "email" checkbox),
-3. commits `reports/AI_Digest_<date>.pdf` and `data/news.db` back to the repository,
-   even if the email failed, so no day is lost,
-4. attaches the PDF to the run as a downloadable artifact.
+3. rebuilds the web dashboard into `docs/`,
+4. commits `reports/AI_Digest_<date>.pdf`, `data/news.db` and `docs/` back to the repository,
+   even if the email failed, so no day is lost (Vercel then redeploys the dashboard),
+5. attaches the PDF to the run as a downloadable artifact.
 
 One-time setup: repo **Settings -> Secrets and variables -> Actions -> New repository secret**.
 Add four secrets:
@@ -97,6 +103,46 @@ Add four secrets:
 Without the Groq secret the digest is built in offline mode. Without the SendGrid secrets the
 digest and PDF are still saved, but the run is marked failed so you notice.
 
+Optional **variable** (Settings -> Secrets and variables -> Actions -> **Variables** tab):
+`DASHBOARD_URL` = your Vercel address, e.g. `https://ai-news-digest.vercel.app`. When set, every
+email gets an "Open in the dashboard" link that jumps straight to that day's issue.
+
+## Web dashboard (Vercel)
+
+A static site: `build_site.py` turns the database into JSON files, and plain HTML/CSS/JavaScript
+in `dashboard/` renders them. There is no backend server, so there is nothing to keep running.
+
+```
+data/news.db --build_site.py--> docs/index.html, app.js, style.css, vercel.json
+                                docs/data/index.json         issues list, totals, chart data
+                                docs/data/issues/<date>.json one newsletter per day
+                                docs/data/articles.json      last 60 days, for search
+```
+
+Features: a calendar (days with an issue are marked; click to open), the full newsletter for that
+day (every headline opens the original article in a new tab), a PDF download, shareable links
+(`/#2026-09-30`), charts by category, source and day, and search with category filters. It works
+on phones and in dark mode.
+
+**One-time Vercel setup:** vercel.com -> *Continue with GitHub* -> **Add New -> Project** -> import
+`ai-news-digest` -> Framework Preset **Other** -> Root Directory **`docs`** -> leave Build and
+Output settings empty -> **Deploy**. After that, every daily commit redeploys the site automatically.
+
+If a daily run's commit doesn't show up as a new deployment in Vercel (Vercel can skip commits made
+by bots), add a **deploy hook**: Vercel project -> Settings -> Git -> Deploy Hooks -> create one for
+branch `main` -> copy the URL -> add it as the GitHub secret `VERCEL_DEPLOY_HOOK`. The workflow then
+triggers the deploy itself.
+
+Note: a manual **Run workflow** with "Quick demo run" ticked replaces that day's issue with the
+smaller demo version (4 stories). The next day's scheduled run is unaffected.
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | HTML + CSS + vanilla JavaScript | No build step, no dependencies to update, loads instantly |
+| Charts | Hand-drawn SVG | Three simple bar charts don't need a 200 KB chart library |
+| Data | JSON exported from SQLite | A static host can't run SQLite; JSON files can be served as-is |
+| Hosting | Vercel (static) | Free, auto-deploys from GitHub, HTTPS, works with private repos |
+
 ## Configuration
 
 All settings live in `config.py`: sources, time window, article limits, number of top stories,
@@ -110,6 +156,7 @@ in `FALLBACK_MODELS`.
 ai-news-digest/
 ├── run_digest.py          # main pipeline (steps 1-7)
 ├── show_db.py             # prints database statistics
+├── build_site.py          # builds the web dashboard (JSON + static files)
 ├── config.py              # sources, limits, model settings
 ├── digest/
 │   ├── collectors.py      # RSS, HTML scraping, Hacker News; filtering, dedupe
@@ -121,9 +168,12 @@ ai-news-digest/
 │   ├── pdf_report.py      # one-page PDF layout
 │   ├── email_html.py      # HTML + plain-text newsletter
 │   ├── mailer.py          # SendGrid API client
+│   ├── site_export.py     # database -> dashboard JSON files
 │   ├── models.py          # Article / Digest data classes
 │   └── text.py            # text cleaning helpers
-├── tests/                 # 84 tests (unit + integration)
+├── dashboard/             # dashboard source: index.html, app.js, style.css, vercel.json
+├── docs/                  # built dashboard (committed by the daily run, served by Vercel)
+├── tests/                 # 99 tests (unit + integration)
 ├── data/news.db           # published database (committed by the daily run)
 ├── reports/               # published daily PDFs (local runs go to reports/local/)
 └── .github/workflows/daily-digest.yml
@@ -135,12 +185,12 @@ ai-news-digest/
 articles(id, url_key UNIQUE, url, title, source, published_at, fetched_at,
          snippet, category, importance, summary, featured_on)
 digests (digest_date PRIMARY KEY, created_at, article_count, source_count,
-         top_story_count, mode, pdf_path)
+         top_story_count, mode, pdf_path,
+         content)   -- JSON: "Today in AI" bullets + which stories were chosen
 ```
 
 ## Planned improvements
 
-- **Web dashboard** (Streamlit): search and filter every stored article by date, source and category.
 - Weekly trend report: which companies and topics are rising, from the stored history.
 
 These reuse the existing database, so each one is a new output rather than a rewrite.

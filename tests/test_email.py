@@ -153,3 +153,11 @@ def test_addresses_echoed_by_sendgrid_are_masked_in_errors():
         mailer.send(_settings(), "S", "h", "t", post=lambda *a, **k: FakeReply(400, body))
     assert "jane.doe" not in str(caught.value)
     assert "ja***@gmail.com" in str(caught.value)
+
+
+def test_dashboard_link_appears_in_email_when_configured():
+    url = "https://ai-news-digest.vercel.app/#2026-09-29"
+    html = render_html(_digest(), dashboard_url=url)
+    assert "Open in the dashboard" in html and url in html
+    assert "Open in the dashboard" not in render_html(_digest())
+    assert f"Dashboard: {url}" in render_text(_digest(), dashboard_url=url)

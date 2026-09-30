@@ -63,7 +63,9 @@ def email_settings() -> mailer.EmailSettings:
 def deliver(digest: Digest, pdf_path: Path, args: argparse.Namespace) -> int:
     """Email the newsletter (or save a preview). The PDF is already safe on disk."""
     pdf_url = config.published_pdf_url(pdf_path.name)
-    html, text = render_html(digest, pdf_url), render_text(digest, pdf_url)
+    base = config.dashboard_url()
+    issue_url = f"{base}#{digest.file_date}" if base else None
+    html, text = render_html(digest, pdf_url, issue_url), render_text(digest, pdf_url, issue_url)
     if args.email_preview:
         preview = pdf_path.with_suffix(".html")
         preview.write_text(html, encoding="utf-8")
@@ -153,6 +155,7 @@ def run(args: argparse.Namespace) -> int:
             conn, digest_date=digest_date, article_count=len(candidates), source_count=len(used_sources),
             top_story_count=len(printed.top_stories), mode=final_mode,
             pdf_path=str(pdf_path.relative_to(config.PROJECT_DIR)),
+            content=storage.digest_content(printed),
         )
 
     status = EXIT_OK

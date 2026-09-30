@@ -1,5 +1,6 @@
 """SQLite storage: every article we collect, plus a record of each digest."""
 
+import json
 import sqlite3
 from collections.abc import Iterable
 from contextlib import contextmanager
@@ -33,9 +34,17 @@ CREATE TABLE IF NOT EXISTS digests (
     source_count   INTEGER NOT NULL,
     top_story_count INTEGER NOT NULL,
     mode           TEXT NOT NULL,
-    pdf_path       TEXT NOT NULL
+    pdf_path       TEXT NOT NULL,
+    content        TEXT                     -- JSON: overview bullets + chosen story URLs
 );
 """
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Databases created before the dashboard existed lack the content column."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(digests)")}
+    if "content" not in columns:
+        conn.execute("ALTER TABLE digests ADD COLUMN content TEXT")
 
 
 def _now() -> str:
@@ -49,6 +58,7 @@ def connect(db_path: Path):
     conn.row_factory = sqlite3.Row
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         yield conn
         conn.commit()
     finally:
@@ -114,12 +124,61 @@ def mark_featured(conn: sqlite3.Connection, articles: Iterable[Article], digest_
 
 def record_digest(
     conn: sqlite3.Connection, *, digest_date: str, article_count: int, source_count: int,
-    top_story_count: int, mode: str, pdf_path: str,
+    top_story_count: int, mode: str, pdf_path: str, content: dict | None = None,
 ) -> None:
+    """Save one row per day. `content` lets the dashboard rebuild that day's newsletter."""
     conn.execute(
-        "INSERT OR REPLACE INTO digests VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (digest_date, _now(), article_count, source_count, top_story_count, mode, pdf_path),
+        "INSERT OR REPLACE INTO digests (digest_date, created_at, article_count, source_count, "
+        "top_story_count, mode, pdf_path, content) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (digest_date, _now(), article_count, source_count, top_story_count, mode, pdf_path,
+         json.dumps(content) if content is not None else None),
     )
+
+
+def digest_content(digest) -> dict:
+    """What to remember about a printed Digest (articles themselves are already stored)."""
+    return {
+        "overview": list(digest.overview),
+        "top": [a.url for a in digest.top_stories],
+        "also": [a.url for a in digest.also_worth_knowing],
+        "notes": list(digest.notes),
+    }
+
+
+# --- Queries used by the dashboard export ------------------------------------
+
+def all_digests(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM digests ORDER BY digest_date").fetchall()
+
+
+def articles_by_url(conn: sqlite3.Connection, urls: Iterable[str]) -> dict[str, sqlite3.Row]:
+    keys = {normalize_url(u): u for u in urls}
+    if not keys:
+        return {}
+    marks = ",".join("?" * len(keys))
+    rows = conn.execute(f"SELECT * FROM articles WHERE url_key IN ({marks})", tuple(keys)).fetchall()
+    return {keys[r["url_key"]]: r for r in rows}
+
+
+def featured_articles(conn: sqlite3.Connection, digest_date: str) -> list[sqlite3.Row]:
+    """Used to rebuild days saved before `content` existed."""
+    return conn.execute(
+        "SELECT * FROM articles WHERE featured_on = ? ORDER BY importance DESC, published_at DESC",
+        (digest_date,),
+    ).fetchall()
+
+
+def recent_articles(conn: sqlite3.Connection, since_iso: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM articles WHERE fetched_at >= ? ORDER BY published_at DESC", (since_iso,)
+    ).fetchall()
+
+
+def daily_fetch_counts(conn: sqlite3.Connection, since_iso: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT substr(fetched_at, 1, 10) AS day, COUNT(*) AS n FROM articles "
+        "WHERE fetched_at >= ? GROUP BY day ORDER BY day", (since_iso,)
+    ).fetchall()
 
 
 def stats(conn: sqlite3.Connection) -> dict:

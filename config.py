@@ -57,6 +57,16 @@ EMAIL_TO = tuple(a.strip() for a in os.getenv("EMAIL_TO", "").split(",") if a.st
 EMAIL_FROM_NAME = "AI News Digest"
 
 
+# --- Web dashboard (Vercel serves the docs/ folder) ---------------------------
+SITE_DIR = PROJECT_DIR / "docs" if PUBLISH else REPORTS_DIR / "site"
+
+
+def dashboard_url() -> str | None:
+    """The live dashboard, e.g. https://ai-news-digest.vercel.app/ (set DASHBOARD_URL)."""
+    url = (os.getenv("DASHBOARD_URL") or "").strip()
+    return url.rstrip("/") + "/" if url.lower().startswith("https://") else None
+
+
 def published_pdf_url(file_name: str) -> str | None:
     """Link to the PDF on GitHub. Only known inside GitHub Actions (else None)."""
     server, repo = os.getenv("GITHUB_SERVER_URL"), os.getenv("GITHUB_REPOSITORY")

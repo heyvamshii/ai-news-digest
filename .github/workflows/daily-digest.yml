@@ -46,6 +46,7 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
         # Scheduled runs always email; manual runs follow the "email" checkbox.
         run: >
           python run_digest.py
@@ -54,12 +55,18 @@ jobs:
 
       # The steps below run even if the email failed, so the day's PDF and
       # articles are never lost. The run still shows red so you notice.
-      - name: Save the PDF and database back to the repository
+      - name: Build the web dashboard
+        if: success() || failure()
+        env:
+          DIGEST_PUBLISH: "1"
+        run: python build_site.py
+
+      - name: Save the PDF, database and dashboard back to the repository
         if: success() || failure()
         run: |
           git config user.name "ai-digest-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for path in reports data/news.db; do
+          for path in reports data/news.db docs; do
             if [ -e "$path" ]; then git add "$path"; fi
           done
           if git diff --cached --quiet; then
@@ -68,6 +75,19 @@ jobs:
             git commit -m "digest: $(TZ=Asia/Kolkata date +%Y-%m-%d)"
             git pull --rebase --autostash
             git push
+          fi
+
+      # Safety net: Vercel normally redeploys on every commit, but it can skip commits made
+      # by bots. If you add a VERCEL_DEPLOY_HOOK secret, this step triggers a deploy directly.
+      - name: Ask Vercel to redeploy the dashboard (optional)
+        if: success() || failure()
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$HOOK" ]; then
+            curl -fsS -X POST "$HOOK" > /dev/null && echo "Vercel deploy triggered."
+          else
+            echo "No VERCEL_DEPLOY_HOOK secret; relying on Vercel's automatic Git deploys."
           fi
 
       - name: Find today's PDF
